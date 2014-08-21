@@ -21,19 +21,21 @@ the REST API and the results are standard JSON documents.
 This REST service is "simple" because it is just a wrapper around the
 functionality provided by the Aurora client library (which is used by
 the Aurora client tool). It does not add or modify any features on top
-of it.
+of it. Furthermore, in this initial version not all commands available
+through the command-line tool are exposed.
 
-The server exposing the Aurroa REST API is built with the [Tornado framework](http://www.tornadoweb.org/en/stable/index.html).
-The advantages of using Tornado are:
+The server is built with the [Tornado framework](http://www.tornadoweb.org/en/stable/index.html)
+which offers the following advantages:
 
 * It is written in Python like the Aurora command-line client
-* It offers non-blocking execution of requests that can help the service to
+* It can process requests in non-blocking mode that can help the service to
 scale up
 
-The Tornado web server accepts requests for the REST API and delegates them
-to the Aurora client code or command-line tool. The simultaneous execution
-of multiple requests is implemented with either threads or external
-processes managed with [concurrent.futures](http://pythonhosted.org//futures).
+The Tornado web server accepts REST API requests and delegates them to
+either the Aurora client code or command-line tool. The simultaneous
+execution of multiple requests is implemented with either threads or
+external processes managed with [concurrent.futures](http://pythonhosted.org//futures).
+The particular options are chosen when the server is started.
 
 #### Build and Installation
 
@@ -76,11 +78,25 @@ $ aurora_rest --port=8888 --executor=internal --application=thread --parallel=4
 
 ## Execution Modes
 
-The REST service can run in one of several execution modes. Some of them 
-allow the service to scale up and handle multiple requests simultaneously,
-and therefore are expected to be used most of the time. Others are useful
-only for troubleshooting problems in the code of the REST service so they
-will be used rarely, most likely by developers only.
+This section explain in more details the different execution modes that
+are supported by the REST service. The reason for making these options
+available is due to the fact that the Aurora client libraries are not
+designed to be multi-threaded (MT) safe. It was not known in advance how
+the code would behave when the Tornado framework runs multiple threads
+in the same process and they enter critical section that may lead to
+corrupted and invaid data. On the other hand a REST service that may
+block for one and more seconds for each request is not going to be that
+useful, so such restriction had to be resolved or worked-around. And
+these design goals -- reasonable performance and MT-safety led to the
+imlemention of several different ways to accept and delegate REST API
+calls to the Aurora scheduler.
+
+The REST service can be started in one of several execution modes, and
+that mode remains active until the server exits, i.e. it can not be changed
+on the fly. Some modes allow the service to scale up and handle multiple
+requests simultaneously, and therefore are expected to be used most of
+the time. Others are useful only for troubleshooting problems in the code
+of the REST service so they will be used rarely.
 
 The recommended mode is __asynchronous execution with multiple threads__
 as the example above demonstrated.
