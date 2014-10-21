@@ -1,3 +1,13 @@
+*~
+*#
+*.swp
+target
+
+.DS_Store
+.project
+.settings
+.classpath
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -34,21 +44,19 @@ htmlcov/
 nosetests.xml
 coverage.xml
 
-# Translations
-*.mo
-
-# Mr Developer
-.mr.developer.cfg
-.project
+# Python
+*.pyc
+.python
 .pydevproject
 
-# Rope
-.ropeproject
-
-# Django stuff:
-*.log
-*.pot
-
-# Sphinx documentation
-docs/_build/
-
+# Pants
+build/
+build-support/*.pex
+build-support/*.venv
+build-support/virtualenv-*
+build-support/phab/
+dist/
+.pants.d
+.pants.run
+.pants.stats
+pants.pex
