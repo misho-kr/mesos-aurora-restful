@@ -7,10 +7,4 @@ def make_link(name, version, requirement=None):
     ]
   )
 
-
-COMMONS_VERSION = '0.3.1'
-
-make_link('twitter.common.app', '%s' % COMMONS_VERSION)
-make_link('twitter.common.log', '%s' % COMMONS_VERSION)
-
 make_link('tornado', '3.2.1')

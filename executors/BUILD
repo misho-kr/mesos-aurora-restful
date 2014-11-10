@@ -1,13 +1,11 @@
 
 python_library(
-  name = 'all',
+  name = 'executors',
   sources = globs('*.py*'),
-#
-#  dependencies = [
-#    pants('3rdparty/python:tornado'),
-#    pants('3rdparty/python:twitter.common.app'),
-#    pants('3rdparty/python:twitter.common.log'),
-#    pants('src/main/python/apache/aurora/client/commands:all'),
-#    pants('src/main/python/apache/aurora/client:base'),
-#  ]
+  dependencies = [
+    'src/main/python/apache/aurora/common:aurora_job_key',
+    'src/main/python/apache/aurora/client/commands:core',
+    'src/main/python/apache/aurora/client:factory',
+    'src/main/python/apache/aurora/client/api:updater_util',
+  ]
 )
