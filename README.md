@@ -3,6 +3,14 @@ Simple REST service for Apache Aurora
 
 __Note: work in progress__
 
+RESTful server exposing API to interact with the [Apache Aurora scheduler](https://github.com/apache/incubator-aurora).
+
+You may also want to look at this [Review Request #23741](https://reviews.apache.org/r/23741)
+which enables REST calls to the service points of the Aurora scheduler that
+were available only through the Thrift protocol.
+
+## Purpose
+
 Aurora includes a powerful command-line tool that is used to send
 [all sorts of query and management commands](https://github.com/apache/incubator-aurora/blob/master/docs/client-commands.md)
 to the scheduler. Users can start, stop and monitor jobs that are controlled
@@ -14,55 +22,83 @@ server that has everything already set up.
 
 The REST service provides remote access to the Aurora Scheduler without
 prerequisites. Any REST client, or the __curl__ command, can be used to call
-the REST API and the results are standard JSON documents.
+the REST API.
 
 ## Implementation
 
+This is a brief description, for more detailed presentation look at the [design document](DESIGN.md).
+
 This REST service is "simple" because it is just a wrapper around the
-functionality provided by the Aurora client library (which is used by
-the Aurora client tool). It does not add or modify any features on top
-of it. Furthermore, in this initial version not all commands available
-through the command-line tool are exposed.
+functionality provided by the Aurora client library (the same one that
+is used by the Aurora client tool):
 
-The server is built with the [Tornado framework](http://www.tornadoweb.org/en/stable/index.html)
-which offers the following advantages:
+* REST API interface implemented with [Tornado framework](http://www.tornadoweb.org/en/stable/index.html)
+* Simple Python code to map the JSON documents to calls to the Aurora client code
 
-* It is written in Python like the Aurora command-line client
-* It can process requests in non-blocking mode that can help the service to
-scale up
+## Build Instructions
 
-The Tornado web server accepts REST API requests and delegates them to
-either the Aurora client code or command-line tool. The simultaneous
-execution of multiple requests is implemented with either threads or
-external processes managed with [concurrent.futures](http://pythonhosted.org//futures).
-The particular options are chosen when the server is started.
+Ideally this repo would be a standalone source tree that can be downloaded,
+built and installed. That is not possible because the Aurora client libraries
+are not packaged and published to a public repository. For that reason the
+build requires the presense of the Apache Aurora source code.
 
-#### Build and Installation
+The workaround that is applied here is to downlad the that code, then stick
+in the code of this server inside at some location, and then build it as
+if it was part of the Apache Aurora source code tree.
 
-The [same instructions](https://github.com/apache/incubator-aurora/blob/master/docs/developing-aurora-client.md)
-for building, testing and deploying the Aurora command-line client apply to
-the REST service:
+It is a sort of hack, but it is an experiment and project to learn.
+[Git submodules](http://git-scm.com/book/en/v2/Git-Tools-Submodules)
+may be useful here to implement the same "hack", it is in the TODO list.
 
-* Execute the following command which will produce executable file __dist/aurora_rest.pex__
+Follow the steps below to build the RESTful server.
 
+#### Step 1: Apache Aurora source code
+
+Use __git-clone__ or __curl__ to bring in the Apache Aurora source code.
+
+```bash
+$ git clone git@github.com:apache/incubator-aurora.git
+$ cd incubator-aurora
+$ ./pants
+Bootstrapping pants @ 0.0.24
++ VIRTUALENV_VERSION=1.11.6
++ which python2.7
+...
+Cleaning up...
+Pants 0.0.24 https://pypi.python.org/pypi/pantsbuild.pants/0.0.24
+
+Usage:
+  ./pants goal [option ...] [goal ...] [target...]  Attempt the specified goals.
+  ./pants goal help                                 Get help.
+  ./pants goal help [goal]                          Get help for the specified goal.
+  ./pants goal goals                                List all installed goals.
+...
 ```
-$ ./pants src/main/python/apache/aurora/client/bin:aurora_rest
 
+Make sure the [pants build tool](http://pantsbuild.github.io/) managed to
+bootstrap itself and finished with success. 
+
+#### Step 2: Simple RESTful server source code
+
+Do the same for this repository.
+
+```bash
+$ pushd src/main/python/apache/aurora/
+$ git clone git@github.com:misho-kr/mesos-aurora-restful.git
+$ mv mesos-aurora-restful rest
+$ popd
 ```
 
-* Run all client tests
+#### Step 3: Execute the build
 
-```
-$ ./pasts src/test/python/apache/aurora/rest/:all
-```
+Execute the following command which will produce executable file __dist/aurora_rest.pex__
 
-* Copy the executable to some apropriate location
-
-```
-$ sudo cp dist/aurora_rest.pex /usr/local/bin/aurora_rest
+```bash
+$ ./pants build src/main/python/apache/aurora/rest/bin:
+$ ls dist/
 ```
 
-#### Start the REST server
+## Start the REST server
 
 The command below will start the Aurora REST service. The paramters that are passed to
 the executable will have the following effect:
@@ -73,105 +109,12 @@ the executable will have the following effect:
 - At most __4 threads__ will be spawned to process API calls
 
 ```
-$ aurora_rest --port=8888 --executor=internal --application=thread --parallel=4
+$ dist/aurora_rest.pex --port=8888 --executor=internal --application=thread --parallel=4
 ```
 
-## Execution Modes
+These parameters and their effects are explained in the [design document](DESIGN.md).
 
-This section explain in more details the different execution modes that
-are supported by the REST service. The reason for making these options
-available is due to the fact that the Aurora client libraries are not
-designed to be multi-threaded (MT) safe. It was not known in advance how
-the code would behave when the Tornado framework runs multiple threads
-in the same process and they enter critical section that may lead to
-corrupted and invaid data. On the other hand a REST service that may
-block for one and more seconds for each request is not going to be that
-useful, so such restriction had to be resolved or worked-around. And
-these design goals -- reasonable performance and MT-safety led to the
-imlemention of several different ways to accept and delegate REST API
-calls to the Aurora scheduler.
-
-The REST service can be started in one of several execution modes, and
-that mode remains active until the server exits, i.e. it can not be changed
-on the fly. Some modes allow the service to scale up and handle multiple
-requests simultaneously, and therefore are expected to be used most of
-the time. Others are useful only for troubleshooting problems in the code
-of the REST service so they will be used rarely.
-
-The recommended mode is __asynchronous execution with multiple threads__
-as the example above demonstrated.
-
-All execution modes are categorized into two groups as described below.
-This picture illustrates all available execution modes and how they can be
-combined to provide the desired service operation.
-
-TBC __add picture here__ TBC
-
-### A. Command execution modes
-
-The defining feature of this group is how requests are handled by the
-application code __after__ they were accepted and dispatched by the Tornado
-web-handling code.
-
-#### A.1 Aurora API calls
-
-The preferred execution mode to handle requests for the Aurora scheduler
-is by directly calling the Aurora client code. In order to enable this
-the REST service imports the same Python modules that the Aurora client uses
-and simply calls the right methods.
-
-Potential problem with this execution mode is the chance that the Aurora
-client code may not be multithread-safe (MT-safe). As the Tornado server
-acceptes simultaneous requests and handles them asynchronously, if there
-are such issues they may lead to incorrect results or disruption of service.
-
-#### A.2 External command
-
-The alternative, and probably safer but slower, execution mode is when
-requests are handled by delegating to an external command to run the
-command line tool that the implements
-[all sorts of query and management commands](https://github.com/apache/incubator-aurora/blob/master/docs/client-commands.md).
-In this mode the Aurora client code is executed by a new process in
-single-threaded mode just as the Aurora client command line tool does. 
-
-### B. Request handling modes
-
-The execution modes in this group are different from each other
-by how the web requests are handled inside the server -- after the requests
-are accepted and before they are delegated to the Aurora client code.
-
-Regardless of the choice of how Aurora commands are actually executed,
-the REST service can handle requests synchronously or asynchronousely,
-one at a time or in parallel.
-
-#### B.1 Multithreaded mode
-
-Multiple threads managed with [ThreadPool](http://pythonhosted.org//futures/#threadpoolexecutor-objects)
-are used to provide simultaneous execution of RESTful calls. 
-
-#### B.2 Multiprocess mode
-
-Similar to the previous mode but, instead of threads, external processes that are
-managed with [ProcessPool](http://pythonhosted.org//futures/#processpoolexecutor-objects)
-are used to execute the RESTful calls simultaneously.
-
-#### B.3 Function calls
-
-This is the simplest execution mode from code perspective. There is nothing
-complicated here -- the Tornado request handler calls directly the code
-that handles the execution of Aurora commands. The result is a __synchronous__
-processing of RESTful calls that are handled one at a time. The execution
-will block for every request and will wait until it is completed, during which
-time the service is unavailable to accept and process new requests.
-
-#### B.4 Coroutines
-
-This is an internal execution mode that enables, together with a thread or
-process pool, to process RESTful calls *asynchornously*. When this mode is
-combined with either multiple threads or processes that makes possible to
-process requests in parallel.
-
-## Commands
+## REST API
 
 * [GET /alpha/jobs/{cluster}/{role}](#get-alphajobsclusterrole): List all jobs
 * [PUT /alpha/job/{cluster}/{role}/{environment}/{jobname}](#put-alphajobclusterroleenvironmentjobname): Create job
@@ -180,8 +123,6 @@ process requests in parallel.
 * [PUT /alpha/job/{cluster}/{role}/{environment}/{jobname}/restart?shards={X}](#put-alphajobclusterroleenvironmentjobnamerestartshardsx): Restart job
 * [DELETE /alpha/job/{cluster}/{role}/{environment}/{jobname}?shards={X}](#delete-alphajobclusterroleenvironmentjobnameshardsx): Kill Aurora job
 * [GET /alpha/version](#get-alphaversion): Query service version
-
-## Examples
 
 #### `GET` /alpha/jobs/{cluster}/{role}
 
