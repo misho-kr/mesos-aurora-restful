@@ -23,16 +23,18 @@ which offers the following advantages:
 * It can process requests in non-blocking mode that can help the service to
 scale up
 
-The Tornado web server accepts REST API requests and delegates them to
-either the Aurora client code or command-line tool. The simultaneous
-execution of multiple requests is implemented with either threads or
+The Tornado web server accepts REST API calls and delegates them
+either to the Aurora client code or (external) client tool. The simultaneous
+execution of multiple requests is implemented with threads or
 external processes managed with [concurrent.futures](http://pythonhosted.org//futures).
-The particular options are chosen when the server is started.
+These options are chosen when the server is started by passing the
+appropriate command-line swithes and arguments.
 
 #### Start the REST server
 
-The command below will start the Aurora REST service. The paramters that are passed to
-the executable will have the following effect:
+The command below shows the recommended arguments to start the Aurora
+RESTful server. The parameters that are passed to the executable will
+have the following effect:
 
 - The server will listen for requests on port __8888__
 - All requests will be executed by __direct calls to the Aurora client code__
@@ -45,27 +47,32 @@ $ aurora_rest --port=8888 --executor=internal --application=thread --parallel=4
 
 ## Execution Modes
 
-This section explain in more details the different execution modes that
-are supported by the REST service. The reason for making these options
-available is due to the fact that the Aurora client libraries are not
-designed to be multi-threaded (MT) safe. It was not known in advance how
-the code would behave when the Tornado framework runs multiple threads
-in the same process and they enter critical section that may lead to
-corrupted and invaid data. On the other hand a REST service that may
-block for one and more seconds for each request is not going to be that
-useful, so such restriction had to be resolved or worked-around. And
-these design goals -- reasonable performance and MT-safety led to the
-imlemention of several different ways to accept and delegate REST API
-calls to the Aurora scheduler.
+This section explain in details the different execution modes to process and
+execute in parallel many requsts that are supported by the RESTful server.
+
+The reason for making these options available is due to the fact that the
+Aurora client libraries are not designed to be multi-threaded (MT) safe.
+It was not known in advance how the code would behave when the Tornado
+framework runs multiple threads in the same process -- as they enter critical
+section that may lead to corrupted and invaid data. On the other hand a REST
+service that serializes the request execution is not going to be that useful,
+so such restriction had to be resolved or worked-around. It is these design
+goals -- reasonable performance and MT-safety led to the implemention of
+several different ways to accept and delegate REST API calls to the Aurora
+scheduler.
 
 The REST service can be started in one of several execution modes, and
-that mode remains active until the server exits, i.e. it can not be changed
-on the fly. Some modes allow the service to scale up and handle multiple
-requests simultaneously, and therefore are expected to be used most of
-the time. Others are useful only for troubleshooting problems in the code
-of the REST service so they will be used rarely.
+that mode can not be changed after the server has started. Some modes allow
+the service to scale up and handle multiple requests simultaneously, at 
+the risk that runtime errors may occur due simultaneous access and
+modification to data that not protected by MT-primitives to ensure it
+does not get corrupted and is always in correct state. Others modes
+guarantee that no such errors will occur but do not provide the same
+level of parallelism and runtime performance. There is even one that is
+useful only for troubleshooting problems in the code of the REST service
+so it will be used rarely.
 
-The recommended mode is __asynchronous execution with multiple threads__
+The recommended execution mode is __asynchronous execution with multiple threads__
 as the example above demonstrated.
 
 All execution modes are categorized into two groups as described below.

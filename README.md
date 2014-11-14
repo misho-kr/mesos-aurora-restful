@@ -95,7 +95,12 @@ Execute the following command which will produce executable file __dist/aurora_r
 
 ```bash
 $ ./pants build src/main/python/apache/aurora/rest/bin:
-$ ls dist/
+Build operating on top level addresses: ...
+...
+Wrote dist/aurora_rest.pex
+$ dist/aurora_rest.pex --help 
+Usage: dist/aurora_rest.pex [OPTIONS]
+...
 ```
 
 ## Start the REST server
